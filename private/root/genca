@@ -1,0 +1,19 @@
+#!/bin/bash
+# Root CA
+openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -nodes \
+-keyout /var/www/ssl/private/root/OskarRootCA.key -out /var/www/ssl/private/root/OskarRootCA.crt \
+-days 36525 \
+-subj "/C=NO/O=Oskar AS/OU=Operations/CN=OskarRootCA"
+
+# Intermediate CSR
+openssl req -newkey ec:<(openssl ecparam -name prime256v1) -nodes \
+-keyout /var/www/ssl/private/intermediate/OskarIntermediateCA.key -out /var/www/ssl/private/intermediate/OskarIntermediateCA.csr \
+-subj "/C=NO/O=Oskar AS/OU=Operations/CN=OIX1"
+
+# Intermediate Signing
+openssl x509 -req -CA /var/www/ssl/private/root/OskarRootCA.crt -CAkey /var/www/ssl/private/root/OskarRootCA.key \
+-in /var/www/ssl/private/intermediate/OskarIntermediateCA.csr -out /var/www/ssl/private/intermediate/OskarIntermediateCA.crt \
+-days 3650 -sha256 \
+-extfile <(printf "basicConstraints=CA:TRUE,pathlen:0\nkeyUsage=critical,cRLSign,keyCertSign")
+
+rm /var/www/ssl/private/intermediate/OskarIntermediateCA.csr

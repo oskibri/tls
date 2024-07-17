@@ -1,0 +1,58 @@
+#!/bin/bash
+
+country=${2^^}
+org=$3
+orgunit=$4
+days=$5
+
+if [ -z $1 ]
+then
+	name=localhost
+	domain="DNS:localhost,IP:127.0.0.1,IP:::1"
+elif [[ $1 =~ ^[0-9.]+$ ]] || [[ $1 =~ : ]]
+then
+	name=$1
+	domain="IP:$1"
+else
+	name=$1
+	domain="DNS:$1"
+fi
+
+if [[ $1 =~ , ]]
+then
+	domain=""
+	count=0
+	for i in ${1//,/ }
+	do
+		if [ $count == 0 ]
+		then
+			name=$i
+		fi
+
+		if [[ $i =~ ^[0-9.]+$ ]] || [[ $i =~ : ]]
+		then
+			domain+="IP:$i,"
+		else
+			domain+="DNS:$i,"
+		fi
+		count=$((count+1))
+	done
+	domain=${domain::-1}
+fi
+echo $domain
+
+# Leaf CSR
+openssl req -newkey ec:<(openssl ecparam -name prime256v1) -nodes \
+ -keyout cert.key -out cert.csr \
+ -subj "/C=${country:=US}/O=${org:=Example Company}/OU=${orgunit:=Example Unit}/CN=$name" \
+ -addext "subjectAltName=$domain"
+
+# Leaf Signing
+openssl x509 -req -CA /var/www/ssl/private/intermediate/OskarIntermediateCA.crt \
+ -CAkey /var/www/ssl/private/intermediate/OskarIntermediateCA.key \
+ -in cert.csr -out cert.crt -days ${days:=365} \
+ -extfile <(printf "subjectAltName=$domain")
+
+rm cert.csr
+cat cert.crt /var/www/ssl/private/intermediate/OskarIntermediateCA.crt > fullchain.crt
+cp /var/www/ssl/private/root/OskarRootCA.crt caroot.crt
